@@ -14,6 +14,7 @@ def __as_freq(note: int) -> int:
 
 
 def __read_midi(__fp):
+    '''Reads a midi file into a list of note-on and note-off events'''
     __midi = MidiFile(__fp)
     __cur_time = 0  # elapsed time in milliseconds
     __ticks_per_beat = __midi.ticks_per_beat
@@ -22,11 +23,12 @@ def __read_midi(__fp):
 
     for __track in __midi.tracks:
         __cur_time = 0
-        __cur_tempo = 500 # default: 500 ms/beat
+        __cur_tempo = 500  # default: 500 ms/beat
         for __msg in __track:
             __cur_time += __msg.time * __cur_tempo / __ticks_per_beat
             if __msg.type == 'note_on':
-                __events.append(_Event(round(__cur_time), __as_freq(__msg.note), __msg.velocity))
+                __events.append(
+                    _Event(round(__cur_time), __as_freq(__msg.note), __msg.velocity))
             elif __msg.type == 'set_tempo':
                 __cur_tempo = __msg.tempo
             elif __msg.type not in {
@@ -34,11 +36,10 @@ def __read_midi(__fp):
                 'control_change',
                 'program_change',
                 'end_of_track',
-                'track_name'}:
+                    'track_name'}:
                 raise ValueError(
                     f'{__fp} contains unhandled message type: {__msg.type}')
 
-    
     return sorted(__events)
 
 
@@ -86,7 +87,7 @@ class _Piano:
         __position = self.__position
         for __time, __note, __vel in self.__notes[__position:]:
             if __elapsed < __time:
-                break
+                return
             self.__position += 1
             
             if __vel: # play note
@@ -117,30 +118,39 @@ def __power(__vel):
 
 __play_note_code = '; __piano.__play()'
 
-def __inject(__fp, __notes, __freq = 1):
+
+def __inject(__fp, __notes, __freq=1):
+    '''Injects the playing of the notes into a python files for raspberry pi 
+    pico's `code.py` file.
+
+    Parameters
+    ----------
+    __fp : str
+        The path to the python file to inject the notes into.
+    __notes : list
+        The notes to play.
+    __freq : int
+        The frequency of checking for if a note should be played.
+        Defaults to 1.
+    '''
     if not __fp.endswith('.py'):
         raise ValueError('File must be a .py file.')
     with open(__fp, 'r') as __f:
         __content = __f.read()
-
-    with open(__fp[:-len('.py')] + 'copy.py', 'w') as __f:
-        __f.write(__content)
 
     __content = __content.split(MAGIC_TOKEN)
     if len(__content) != 2:
         raise ValueError('File does not contain magic token.')
 
     if '__import_gpios' not in __content[0]:
-        raise ValueError('You must call `__import_gpios to import your devices.')
+        raise ValueError(
+            'You must call `__import_gpios to import your devices.')
 
-    __notes_str = '''
-__piano.__import_notes([
-''' + ',\n'.join([f'({__time}, {__note}, {__vel})' for __time, __note, __vel in __notes]) + '''
-])
+    __notes_str = '\n__piano.__import_notes(["' + ','.join([
+        f'({__time}, {__note}, {__vel})' for __time, __note, __vel in __notes
+        ]) + '"])'
 
-'''
-
-    with open(__fp, 'w') as __f:
+    with open(__fp[:-len('.py')] + '_injected.py', 'w') as __f:
         if '__power' not in __content:
             __f.write(__power)
         __f.write(__header)
@@ -162,9 +172,7 @@ __piano.__import_notes([
 
             __f.write('\n')
 
-    
+
 if __name__ == '__main__':
     notes = __read_midi('example.midi')
     __inject('example.py', notes)
-
-
