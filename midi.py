@@ -146,9 +146,9 @@ def __inject(__fp, __notes, __freq=1):
         raise ValueError(
             'You must call `__import_gpios to import your devices.')
 
-    __notes_str = '\n__piano.__import_notes(["' + ','.join([
+    __notes_str = '\n__piano.__import_notes([' + ','.join([
         f'({__time}, {__note}, {__vel})' for __time, __note, __vel in __notes
-        ]) + '"])'
+    ]) + '])'
 
     with open(__fp[:-len('.py')] + '_injected.py', 'w') as __f:
         if '__power' not in __content:
@@ -174,5 +174,21 @@ def __inject(__fp, __notes, __freq=1):
 
 
 if __name__ == '__main__':
-    notes = __read_midi('example.midi')
-    __inject('example.py', notes)
+    import argparse
+    __parser = argparse.ArgumentParser(
+        description='Injects the playing of the notes into a python file.')
+    __parser.add_argument(
+        'midi_file',
+        help='The path to the midi file to play.')
+    __parser.add_argument(
+        'python_file',
+        help='The path to the python file to inject the notes into.')
+    __parser.add_argument(
+        '--freq',
+        type=int,
+        default=1,
+        help='The frequency of checking for if a note should be played.')
+    __args = __parser.parse_args()
+
+    __notes = __read_midi(__args.midi_file)
+    __inject(__args.python_file, __notes, __args.freq)
